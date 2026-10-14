@@ -750,7 +750,7 @@ body.isfs .fsbtn .fs-out{display:inline}
     { id: 'silver', name: '실버 드래곤', elem: '바람', icon: '🌪️', color: '#b9c5d1', dark: '#7a8896', fx: 'speed', k: 1.5, text: '좌우 이동 속도' },
     { id: 'white', name: '화이트 드래곤', elem: '빛', icon: '✨', color: '#f6f3e8', dark: '#c4bea3', fx: 'addBoost', k: 1.5, text: '+ 게이트 효과' },
     { id: 'black', name: '블랙 드래곤', elem: '어둠', icon: '🌑', color: '#463c63', dark: '#25203a', fx: 'mulBoost', k: 1.0, text: '+% 게이트 효과' },
-    { id: 'rainbow', name: '레인보우 드래곤', elem: '무지개', icon: '🌈', color: '#ff7ad9', dark: '#8a4dff', fx: 'all', k: 0.45, text: '모든 효과를 조금씩' },
+    { id: 'rainbow', name: '레인보우 드래곤', elem: '무지개', icon: '🌈', color: '#ff7ad9', dark: '#8a4dff', fx: 'all', k: 0.15, text: '모든 효과를 조금씩' },
   ];
   KR.DRAGON_BY_ID = {};
   KR.DRAGONS.forEach((d) => (KR.DRAGON_BY_ID[d.id] = d));
@@ -1040,7 +1040,9 @@ body.isfs .fsbtn .fs-out{display:inline}
       try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch (e) { this.memory = true; }
     },
     reset() {
+      const pin = this.data && this.data.settings && this.data.settings.pin; // 진행을 초기화해도 비밀번호는 그대로 둬요
       this.data = defaults();
+      if (pin) this.data.settings.pin = pin;
       this.save();
     },
     rollShopDay() {
@@ -8616,9 +8618,11 @@ function mark(c,w,x,y,k){
   }
 
   /* ================= 마스터 설정 (비밀번호 잠금) ================= */
-  function openParent() { // 비밀번호(KR.DEFAULT_PIN)를 맞춰야 열려요
+  const curPin = () => String((D().settings && D().settings.pin) || KR.DEFAULT_PIN);
+  // 4자리 숫자 패드: 네 자리가 차면 onFull(값)을 불러요. 문구(문자열)를 돌려주면 틀린 것으로 보고 흔들어요
+  function pinSheet(title, sub, onFull, onClose) {
     const s = el('div', 'sheet');
-    s.innerHTML = '<h2>🔒 마스터 설정</h2><p>비밀번호 4자리를 눌러요</p>';
+    s.innerHTML = '<h2>' + title + '</h2><p>' + sub + '</p>';
     const disp = el('div', 'pin-disp', '');
     const pad = el('div', 'keypad');
     let val = '';
@@ -8628,9 +8632,11 @@ function mark(c,w,x,y,k){
       if (k === '⌫') val = val.slice(0, -1); else if (val.length < 4) val += k;
       draw();
       if (val.length === 4) {
-        if (val === String(KR.DEFAULT_PIN)) { closeModal(); openSettings(); return; }
-        disp.animate([{ transform: 'translateX(-.3em)' }, { transform: 'translateX(.3em)' }, { transform: 'translateX(0)' }], { duration: 220, iterations: 2 });
-        val = ''; setTimeout(draw, 260); toast('비밀번호가 달라요');
+        const bad = onFull(val);
+        if (typeof bad === 'string') {
+          disp.animate([{ transform: 'translateX(-.3em)' }, { transform: 'translateX(.3em)' }, { transform: 'translateX(0)' }], { duration: 220, iterations: 2 });
+          val = ''; setTimeout(draw, 260); toast(bad);
+        }
       }
     };
     ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].forEach((k) => {
@@ -8638,8 +8644,28 @@ function mark(c,w,x,y,k){
       pad.appendChild(b);
     });
     draw(); s.appendChild(disp); s.appendChild(pad);
-    const c = el('button', 'btn gray', '닫기'); c.onclick = closeModal; s.appendChild(c);
-    modal(s, true);
+    const c = el('button', 'btn gray', '닫기'); c.onclick = onClose || closeModal; s.appendChild(c);
+    return s;
+  }
+  function openParent() { // 비밀번호를 맞춰야 열려요 (설정에서 바꿀 수 있어요)
+    modal(pinSheet('🔒 마스터 설정', '비밀번호 4자리를 눌러요', (v) => {
+      if (v === curPin()) { closeModal(); openSettings(); return; }
+      return '비밀번호가 달라요';
+    }), true);
+  }
+  // 비밀번호 바꾸기: 지금 비밀번호 → 새 비밀번호 → 한 번 더
+  function changePin() {
+    const back = () => { closeModal(); openSettings(); };
+    const step3 = (np) => { closeModal(); modal(pinSheet('🔑 비밀번호 바꾸기', '새 비밀번호를 한 번 더 눌러요', (v) => {
+      if (v !== np) { toast('두 번이 달라요. 처음부터 다시 해요'); step2(); return; }
+      D().settings.pin = np; KR.store.save(); toast('비밀번호를 바꿨어요 🔑'); back();
+    }, back), true); };
+    const step2 = () => { closeModal(); modal(pinSheet('🔑 비밀번호 바꾸기', '새 비밀번호 4자리를 눌러요', (v) => { step3(v); }, back), true); };
+    closeModal();
+    modal(pinSheet('🔑 비밀번호 바꾸기', '지금 비밀번호를 눌러요', (v) => {
+      if (v !== curPin()) return '지금 비밀번호가 달라요';
+      step2();
+    }, back), true);
   }
   /* 영구 계급표: 1~100급 이름·사격 보너스·다음 급까지 필요한 XP (현재 계급 표시) */
   function openRankTable() {
@@ -8806,6 +8832,9 @@ function mark(c,w,x,y,k){
     const rel = el('div', 'set-row', '<span>연속 시간 타이머</span>');
     const rb = el('button', '', '지금 풀기'); rb.onclick = () => { KR.timer.release(); warned.soon = warned.due = false; hideLock(); updateTimeBar(); toast('타이머를 풀었어요'); closeModal(); };
     rel.appendChild(rb); box.appendChild(rel);
+    const pwr = el('div', 'set-row', '<span>🔑 마스터 비밀번호</span>');
+    const pwb = el('button', '', '바꾸기'); pwb.onclick = () => { sfx('tap'); changePin(); };
+    pwr.appendChild(pwb); box.appendChild(pwr);
     const dxr = el('div', 'set-row', '<span>📚 도감 (월드·보스·보물)</span>');
     [['월드', 'world'], ['보스', 'boss'], ['보물', 'treasure']].forEach(([t, k]) => { const b = el('button', '', t); b.onclick = () => { sfx('tap'); openDex(k); }; dxr.appendChild(b); });
     box.appendChild(dxr);
