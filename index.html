@@ -548,6 +548,9 @@ body.isfs .fsbtn .fs-out{display:inline}
 .set-row .bgmbtns button{flex:1;background:#e3e6ff;color:#3a4080;font-size:1.1em;padding:.2em 0;border:.12em solid #d3d8f5}
 .set-row .bgmbtns button.on{background:#ffb347;color:#fff;border-color:#e08a1c}
 
+.bgmhint{position:absolute;left:50%;top:.5em;transform:translateX(-50%);z-index:90;display:none;background:rgba(20,16,70,.82);color:#fff;border-radius:2em;padding:.35em .9em;font-size:.72em;box-shadow:0 .2em .8em rgba(0,0,0,.4)}
+.bgmhint.on{display:block}
+
 </style>
 <div id="frame">
 
@@ -673,6 +676,7 @@ body.isfs .fsbtn .fs-out{display:inline}
   </section>
 
   <!-- 공용 -->
+  <button class="bgmhint" id="bgm-hint" type="button">🔇 눌러서 소리 켜기</button>
   <div class="overlay" id="modal"></div>
   <div class="overlay lock" id="lock">
     <div class="sheet">
@@ -3955,19 +3959,26 @@ KR.worldboss = { draw, icon, NAMES, INFO };
   }
 
   /* ---------- 실시간 연주 ---------- */
-  let ac = null, cur = null, vol = 0.7, ana = null, timer = 0;
+  let ac = null, cur = null, vol = 0.7, ana = null, timer = 0, pending = null;
   function ctx() {
     if (!ac) { const A = window.AudioContext || window.webkitAudioContext; if (!A) return null; try { ac = new A(); } catch (e) { return null; } }
-    if (ac.state === 'suspended') ac.resume();
+    if (ac.state === 'suspended') { try { const r = ac.resume(); if (r && r.then) r.then(() => { if (pending) bgm.play(pending); }, () => {}); } catch (e) { /* 무시 */ } }
+    if (!ac.onstatechange) ac.onstatechange = () => { if (ac.state === 'running' && pending) bgm.play(pending); };
     return ac;
   }
-  bgm.unlock = () => { const a = ctx(); return !!a && a.state === 'running'; };
+  bgm.unlock = () => { // 터치한 순간에 호출: 소리 장치를 깨우고(빈 소리 한 번), 기다리던 곡이 있으면 시작해요
+    const a = ctx(); if (!a) return false;
+    try { if (!a._u) { const b = a.createBuffer(1, 1, 22050), x = a.createBufferSource(); x.buffer = b; x.connect(a.destination); x.start(0); a._u = 1; } } catch (e) { /* 무시 */ }
+    return a.state === 'running';
+  };
   bgm.running = () => !!ac && ac.state === 'running';
+  bgm.waiting = () => !!pending;
   bgm.current = () => (cur ? cur.tr.id : null);
   bgm.analyser = () => ana;
   bgm.progress = () => (cur && ac ? Math.max(0, ((ac.currentTime - cur.t0) % cur.tr.loopSec) / cur.tr.loopSec) : 0);
   bgm.setVolume = (v) => { vol = Math.max(0, Math.min(1, v)); if (cur && ac) cur.ch.master.gain.setTargetAtTime(vol * 0.5 + 0.0001, ac.currentTime, 0.05); };
   bgm.stop = (fade) => {
+    pending = null;
     if (!cur) return;
     const c = cur; cur = null; clearInterval(timer);
     const f = fade == null ? 0.8 : fade;
@@ -3978,6 +3989,8 @@ KR.worldboss = { draw, icon, NAMES, INFO };
     const tr = T.find((x) => x.id === id); if (!tr) return false;
     if (cur && cur.tr === tr) return true;
     const a = ctx(); if (!a) return false;
+    if (a.state !== 'running') { pending = id; return false; } // 소리 장치가 깨어난 뒤에 시작해요 (깨어나면 자동으로 이어서 시작)
+    pending = null;
     bgm.stop(0.6); compile(tr);
     const ch = makeChain(a, tr.bpm, 2.8);
     if (!ana) { ana = a.createAnalyser(); ana.fftSize = 128; ana.smoothingTimeConstant = 0.8; ana.connect(a.destination); }
@@ -7453,8 +7466,10 @@ function mark(c,w,x,y,k){
   function syncBgm() {
     if (!KR.bgm || !bgmTouched) return;
     const st = D().settings, hold = document.hidden || !BGM_SCREENS.includes(cur) || $('lock').classList.contains('on') || document.querySelector('.bangu-frame');
-    if (st.music === false || hold) { if (KR.bgm.current()) KR.bgm.stop(1.2); return; }
+    const chip = $('bgm-hint');
+    if (st.music === false || hold) { if (KR.bgm.current() || KR.bgm.waiting()) KR.bgm.stop(1.2); if (chip) chip.classList.remove('on'); return; }
     if (!KR.bgm.running()) KR.bgm.unlock();
+    if (chip) chip.classList.toggle('on', !KR.bgm.running() && cur === 'home'); // 브라우저가 소리를 막고 있으면 눌러서 켤 수 있어요
     KR.bgm.setVolume((st.musicVol == null ? 50 : st.musicVol) / 100);
     KR.bgm.play(st.musicTrack || 'forest');
   }
@@ -8768,8 +8783,8 @@ function mark(c,w,x,y,k){
     stepper('쉬는 시간', 'restMin', 5, 5, 60, '분');
     function toggle(label, key, after) {
       const r = el('div', 'set-row', '<span>' + label + '</span>');
-      const b = el('button', '', st[key] ? 'ON' : 'OFF');
-      b.onclick = () => { st[key] = !st[key]; b.textContent = st[key] ? 'ON' : 'OFF'; KR.store.save(); if (after) after(); };
+      const b = el('button', '', (key === 'music' ? st[key] !== false : st[key]) ? 'ON' : 'OFF');
+      b.onclick = () => { st[key] = key === 'music' ? st[key] === false : !st[key]; b.textContent = st[key] ? 'ON' : 'OFF'; KR.store.save(); if (after) after(); };
       r.appendChild(b); box.appendChild(r); return b;
     }
     toggle('효과음', 'sound');
@@ -8883,7 +8898,7 @@ function mark(c,w,x,y,k){
     tick();
     // 크롬은 손가락을 '뗄 때'(pointerup/touchend/click)부터 소리를 허락해요. 소리가 시작될 때까지 계속 시도해요.
     const firstTouch = () => { bgmTouched = true; if (KR.bgm) KR.bgm.unlock(); syncBgm(); };
-    ['pointerup', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, firstTouch, { capture: true, passive: true }));
+    ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, firstTouch, { capture: true, passive: true }));
     document.addEventListener('visibilitychange', syncBgm);
     setInterval(syncBgm, 700);
   };
