@@ -987,7 +987,7 @@ body.isfs .fsbtn .fs-out{display:inline}
       mathCorrect: 0,
       mathBadges: 0,
       giftsGiven: {},
-      settings: { pin: KR.DEFAULT_PIN, playMin: KR.PLAY_LIMIT_MIN, restMin: KR.REST_MIN, sound: true, music: true, musicTrack: 'dawn', musicVol: 50, lowfx: false },
+      settings: { pin: KR.DEFAULT_PIN, playMin: KR.PLAY_LIMIT_MIN, restMin: KR.REST_MIN, sound: true, music: true, musicTrack: 'forest', musicPicked: false, musicVol: 50, lowfx: false },
       timer: { play: 0, last: 0, lockUntil: 0, due: false },
       plays: 0,
     };
@@ -1005,8 +1005,10 @@ body.isfs .fsbtn .fs-out{display:inline}
       const base = defaults();
       if (d && d.v === 1) {
         // 새로 추가된 필드가 있어도 안전하게 병합
+        const defSet = Object.assign({}, base.settings);
         d = Object.assign(base, d);
-        d.settings = Object.assign(base.settings, d.settings || {});
+        d.settings = Object.assign(defSet, d.settings || {});
+        if (!d.settings.musicPicked) d.settings.musicTrack = 'forest'; // 직접 고른 적 없으면 기본곡을 따라가요
         d.timer = Object.assign(base.timer, d.timer || {});
         d.shop = Object.assign(base.shop, d.shop || {});
         d.unitSeen = d.unitSeen || {};
@@ -3959,6 +3961,8 @@ KR.worldboss = { draw, icon, NAMES, INFO };
     if (ac.state === 'suspended') ac.resume();
     return ac;
   }
+  bgm.unlock = () => { const a = ctx(); return !!a && a.state === 'running'; };
+  bgm.running = () => !!ac && ac.state === 'running';
   bgm.current = () => (cur ? cur.tr.id : null);
   bgm.analyser = () => ana;
   bgm.progress = () => (cur && ac ? Math.max(0, ((ac.currentTime - cur.t0) % cur.tr.loopSec) / cur.tr.loopSec) : 0);
@@ -7450,8 +7454,9 @@ function mark(c,w,x,y,k){
     if (!KR.bgm || !bgmTouched) return;
     const st = D().settings, hold = document.hidden || !BGM_SCREENS.includes(cur) || $('lock').classList.contains('on') || document.querySelector('.bangu-frame');
     if (st.music === false || hold) { if (KR.bgm.current()) KR.bgm.stop(1.2); return; }
+    if (!KR.bgm.running()) KR.bgm.unlock();
     KR.bgm.setVolume((st.musicVol == null ? 50 : st.musicVol) / 100);
-    KR.bgm.play(st.musicTrack || 'dawn');
+    KR.bgm.play(st.musicTrack || 'forest');
   }
   ui.syncBgm = syncBgm;
   function show(name) {
@@ -8773,8 +8778,8 @@ function mark(c,w,x,y,k){
     const setVol = (d) => { st.musicVol = Math.max(10, Math.min(100, (st.musicVol == null ? 50 : st.musicVol) + d)); vv.textContent = st.musicVol + '%'; KR.store.save(); if (KR.bgm) KR.bgm.setVolume(st.musicVol / 100); };
     vm.onclick = () => setVol(-10); vp.onclick = () => setVol(10); volRow.appendChild(vm); volRow.appendChild(vv); volRow.appendChild(vp); box.appendChild(volRow);
     const pk = el('div', 'set-row bgmpick'), pkn = el('span', '', ''), pkb = el('div', 'bgmbtns');
-    const showTrack = () => { const t = KR.bgm.TRACKS.find((x) => x.id === (st.musicTrack || 'dawn')) || KR.bgm.TRACKS[0]; pkn.innerHTML = '곡 고르기 · <b>' + t.name + '</b>'; [...pkb.children].forEach((x, i) => x.classList.toggle('on', KR.bgm.TRACKS[i].id === t.id)); };
-    KR.bgm.TRACKS.forEach((t) => { const b = el('button', '', ({ dawn: '🌅', star: '✨', hero: '⚔️', forest: '🌲' })[t.id] || '🎵'); b.title = t.name; b.onclick = () => { bgmTouched = true; st.musicTrack = t.id; st.music = true; musicBtn.textContent = 'ON'; KR.store.save(); showTrack(); syncBgm(); }; pkb.appendChild(b); });
+    const showTrack = () => { const t = KR.bgm.TRACKS.find((x) => x.id === (st.musicTrack || 'forest')) || KR.bgm.TRACKS[0]; pkn.innerHTML = '곡 고르기 · <b>' + t.name + '</b>'; [...pkb.children].forEach((x, i) => x.classList.toggle('on', KR.bgm.TRACKS[i].id === t.id)); };
+    KR.bgm.TRACKS.forEach((t) => { const b = el('button', '', ({ dawn: '🌅', star: '✨', hero: '⚔️', forest: '🌲' })[t.id] || '🎵'); b.title = t.name; b.onclick = () => { bgmTouched = true; st.musicTrack = t.id; st.musicPicked = true; st.music = true; musicBtn.textContent = 'ON'; KR.store.save(); showTrack(); syncBgm(); }; pkb.appendChild(b); });
     pk.appendChild(pkn); pk.appendChild(pkb); box.appendChild(pk); showTrack();
     toggle('저사양 모드 (끊길 때)', 'lowfx', () => KR.game.setLowFx(st.lowfx));
     const rel = el('div', 'set-row', '<span>연속 시간 타이머</span>');
@@ -8876,9 +8881,9 @@ function mark(c,w,x,y,k){
     goHome();
     setInterval(tick, 1000);
     tick();
-    const firstTouch = () => { bgmTouched = true; syncBgm(); };
-    document.addEventListener('pointerdown', firstTouch, { once: true, capture: true });
-    document.addEventListener('keydown', firstTouch, { once: true, capture: true });
+    // 크롬은 손가락을 '뗄 때'(pointerup/touchend/click)부터 소리를 허락해요. 소리가 시작될 때까지 계속 시도해요.
+    const firstTouch = () => { bgmTouched = true; if (KR.bgm) KR.bgm.unlock(); syncBgm(); };
+    ['pointerup', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, firstTouch, { capture: true, passive: true }));
     document.addEventListener('visibilitychange', syncBgm);
     setInterval(syncBgm, 700);
   };
