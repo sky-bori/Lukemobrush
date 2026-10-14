@@ -441,7 +441,8 @@ body.isfs .fsbtn .fs-out{display:inline}
 .ranktable p{font-size:.8em}
 .rtlist{max-height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:.15em;text-align:left;position:relative}
 .rthead{font-size:.7em;font-weight:900;color:#5a63a8;background:#e6e9fb;border-radius:.5em;padding:.15em .5em;margin-top:.3em;position:sticky;top:0;z-index:1}
-.rtrow{display:grid;grid-template-columns:3.2em 1fr auto 4.6em;gap:.3em;align-items:center;font-size:.74em;padding:.18em .5em;border-radius:.5em}
+.rtrow{display:grid;grid-template-columns:1.9em 2.6em 1fr auto 4.2em;gap:.25em;align-items:center;font-size:.72em;padding:.18em .4em;border-radius:.5em}
+.rtrow span{white-space:nowrap;min-width:0}
 .rtrow b{color:#2a2f55}
 .rtrow i{font-style:normal;color:#b36b00;font-size:.9em}
 .rtrow em{font-style:normal;text-align:right;color:#7a82b8;font-size:.9em}
@@ -459,7 +460,7 @@ body.isfs .fsbtn .fs-out{display:inline}
 .mmrow:active{transform:translateY(.1em);box-shadow:0 .1em 0 #dfe3fa}
 .mmic{flex:none;width:1.9em;height:1.9em;border-radius:.6em;display:grid;place-items:center;font-size:1.5em;line-height:1;color:#fff;box-shadow:0 .15em 0 rgba(0,0,0,.18)}
 .mmic.bg{background:linear-gradient(160deg,#ffa24d,#e0662a)}.mmic.pk{background:linear-gradient(160deg,#2fbf6d,#128a4b)}.mmic.geo{background:linear-gradient(160deg,#4fb3e8,#2a6fd0)}.mmic.clay{background:linear-gradient(160deg,#2fd2b4,#12917f)}
-.mmtx{flex:1;min-width:0;line-height:1.2}.mmtx b{display:block;font-size:1em;white-space:nowrap}.mmtx small{display:block;font-size:.72em;color:#6a70a0;margin-top:.15em}
+.mmtx{flex:1;min-width:0;line-height:1.2}.mmtx b{display:block;font-size:.86em;white-space:nowrap}.mmtx small{display:block;font-size:.72em;color:#6a70a0;margin-top:.15em}
 .mmrt{display:flex;flex-direction:column;align-items:flex-end;gap:.2em;flex:none}.mmrt small{font-size:.62em;color:#6a70a0;white-space:nowrap}
 .mmchip{font-style:normal;background:linear-gradient(#ffe27a,#ffb300);color:#5a3300;border-radius:1em;padding:.1em .6em;font-size:.95em;box-shadow:0 .15em 0 #b97800;white-space:nowrap}
 
@@ -551,6 +552,10 @@ body.isfs .fsbtn .fs-out{display:inline}
 .bgmhint{position:absolute;left:50%;top:.5em;transform:translateX(-50%);z-index:90;display:none;background:rgba(20,16,70,.82);color:#fff;border-radius:2em;padding:.35em .9em;font-size:.72em;box-shadow:0 .2em .8em rgba(0,0,0,.4)}
 .bgmhint.on{display:block}
 
+.avatar{width:3.7em;height:3.7em;background:none}
+.avatar canvas{height:3.6em!important;width:3.6em!important}
+.rtrow .rtem{width:1.9em;height:1.9em}
+
 </style>
 <div id="frame">
 
@@ -593,7 +598,7 @@ body.isfs .fsbtn .fs-out{display:inline}
       <button class="btn nav" id="h-cards">🐉 카드<em id="h-cards-new"></em></button>
       <button class="btn nav blue" id="h-shop">🛒 상점</button>
       <button class="btn nav" id="h-hall">🏆 보물관<em id="h-hall-n"></em></button>
-      <button class="btn nav gold" id="h-mini">⚽ 미니게임</button>
+      <button class="btn nav gold" id="h-mini">🪙 미니게임</button>
     </div>
     <div class="timebar" id="h-time"><span>⏱ 연속 플레이</span><div class="tb"><i id="h-time-fill"></i></div><b id="h-time-text">0/30분</b></div>
   </section>
@@ -7520,8 +7525,8 @@ function mark(c,w,x,y,k){
     $('h-badge').innerHTML = badge + ' <b>' + d.mathCorrect + '</b>';
 
     const pr = KR.rank.progress(), r = pr.rank, tier = KR.rankTier(r);
-    const av = $('h-avatar'); av.innerHTML = ''; av.appendChild(KR.art.soldierEl(tier, 52));
-    $('h-tier').textContent = KR.TIERS[tier].name + ' · ' + KR.TIERS[tier].en;
+    const av = $('h-avatar'); av.innerHTML = ''; av.appendChild(KR.rankdex.emblem(r, 120));
+    $('h-tier').textContent = r > 50 ? '신화 · ' + KR.rankdex.groupName(r) : KR.TIERS[tier].name + ' · ' + KR.TIERS[tier].en;
     $('h-rname').innerHTML = 'Lv.' + r + '  ' + KR.rankName(r) + (r > 1 ? '  ' + SPD() + '+' + Math.round(KR.rankFire(r) * 100) + '%' : '');
     $('h-xp').style.width = Math.round(pr.ratio * 100) + '%';
     $('h-xptext').textContent = pr.capped ? '⭐ 최고 계급!' : pr.cur + ' / ' + pr.need + ' XP';
@@ -8418,8 +8423,8 @@ function mark(c,w,x,y,k){
     const s = el('div', 'sheet');
     s.innerHTML = '<h2>🎖 진급했어요!</h2>';
     const av = el('div', '', ''); av.style.cssText = 'display:flex;justify-content:center';
-    av.appendChild(KR.art.soldierEl(KR.rankTier(r), 120)); s.appendChild(av);
-    s.appendChild(el('p', '', KR.TIERS[KR.rankTier(r)].name + ' · Lv.' + r + '<br><b style="font-size:1.4em;color:#2a2f55">' + KR.rankName(r) + '</b>'));
+    av.appendChild(KR.rankdex.emblem(r, 200)); av.firstChild.style.cssText = 'width:7.5em;height:7.5em'; s.appendChild(av);
+    s.appendChild(el('p', '', (r > 50 ? '신화 · ' + KR.rankdex.groupName(r) : KR.TIERS[KR.rankTier(r)].name) + ' · Lv.' + r + '<br><b style="font-size:1.4em;color:#2a2f55">' + KR.rankName(r) + '</b>'));
     s.appendChild(el('p', 'tip', SPD() + ' 사격 속도 +' + Math.round(KR.rankFire(r) * 100) + '% (렙이 오를수록 빨라져요)'));
     const ok = el('button', 'btn', '좋아요!'); ok.onclick = closeModal; s.appendChild(ok);
     modal(s, false);
@@ -8478,11 +8483,11 @@ function mark(c,w,x,y,k){
   /* ================= 홈에서 미니게임 연습 (보상 없음) ================= */
   function openMiniMenu() {
     const s = el('div', 'sheet mmsheet');
-    s.appendChild(el('h2', '', '⚽ 미니게임 +🪙'));
+    s.appendChild(el('h2', '', '🪙 미니게임'));
     const LIST = [
       { id: 'bangu', cls: 'bg', icon: '🚗', name: '방구차', desc: '벽에 안 닿고 도착!', coin: '+30', unit: '라운드마다 · 최대 ' + (KR.HOME_BANGU_ROUND * 3 + KR.HOME_BANGU_ALL) },
       { id: 'timing', cls: 'pk', icon: '⚽', name: '페널티킥', desc: KR.PK_PRACTICE_ROUNDS + '라운드 · 갈수록 빨라져요', coin: '+' + KR.HOME_PK_EACH, unit: '골마다 · 최대 ' + KR.PK_PRACTICE_ROUNDS * KR.HOME_PK_EACH },
-      { id: 'clay', cls: 'clay', icon: '🎯', name: 'Clay Shooting', desc: '과녁을 쏴서 코인!', coin: '×' + KR.CLAY_MUL_HOME, unit: '점수 기준 · 45초 · 무제한' },
+      { id: 'clay', cls: 'clay', icon: '🎯', name: 'Clay Shooting', desc: '과녁을 쏴서 코인!', coin: '×' + KR.CLAY_MUL_HOME, unit: '45초 · 무제한' },
       { id: 'geo', cls: 'geo', icon: '🌍', name: '국기·수도 퀴즈', desc: '세계 나라 맞히기', coin: '+' + KR.HOME_GEO_EACH, unit: '정답마다 · 무제한' },
     ];
     const box = el('div', 'mmlist');
@@ -8649,8 +8654,9 @@ function mark(c,w,x,y,k){
       for (let r = r0; r < r0 + 5; r++) {
         const row = el('div', 'rtrow' + (r === cur ? ' cur' : r < cur ? ' done' : ''));
         const info = (r <= 50 ? SPD() + '+' + Math.round(KR.rankFire(r) * 100) + '%' : '') + (KR.RANK_GIFTS[r] ? ' 🎁' : '');
+        const em = KR.rankdex.emblem(r, 64); em.className = 'rtem';
         row.innerHTML = '<b>Lv.' + r + '</b><span>' + KR.rankName(r) + '</span><i>' + info + '</i><em>' + (r >= KR.RANK_CAP ? '최고' : KR.rankNeed(r).toLocaleString() + ' XP') + '</em>';
-        list.appendChild(row); if (r === cur) curRow = row;
+        row.insertBefore(em, row.firstChild); list.appendChild(row); if (r === cur) curRow = row;
       }
     }
     s.appendChild(list);
